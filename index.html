@@ -82,6 +82,11 @@
     @media (max-width:900px){.col-8,.col-4,.col-6{grid-column:1 / -1}}
     .equation{font-size:26px; font-weight:800; letter-spacing:.2px; margin:4px 0 8px}
     .target{font-size:16px; color:var(--muted); margin-bottom:8px}
+    .input-preview{border:1px solid var(--border); background:var(--card); border-radius:10px; padding:8px 10px;}
+    .input-preview .preview-tex{font-size:18px; font-weight:600;}
+    .input-preview .preview-msg{margin-top:4px; color:var(--bad);}
+    
+
     .muted{color:var(--muted); font-size:13px} .small{font-size:12px}
     .status{padding:12px 12px; border-radius:12px; margin-top:10px; border:1px dashed rgba(148,163,184,.45)}
     .ok{border-color:rgba(34,197,94,.55); background:rgba(34,197,94,.12)}
@@ -234,10 +239,11 @@
     <!-- PRACTICA -->
     <div id="tab-practica" class="grid" style="margin-top:14px">
       <div class="col-8">
-        <div class="card">
+        <div class="card"><div id="target" class="target">Despeja: —</div>
+
           <div id="equation" class="equation"><span class="tex">(—)</span></div>
-          <div class="row level-wrap">
-            <div id="target" class="target">Despeja: —</div>
+          
+<div class="row level-wrap"> 
             <label class="small muted">Nivel:
               <select id="nivel" class="level-select">
                 <option value="0">Todos</option>
@@ -251,7 +257,13 @@
 
           <div class="input-stack">
             <input id="respuesta" type="text" placeholder="Tu expresión..." />
-            <div id="panel" class="panel">
+            
+<div id="respuesta-preview" class="input-preview hidden">
+  <div class="small muted">Vista previa interpretada</div>
+  <div id="preview-tex-practice" class="preview-tex">(—)</div>
+  <div id="preview-msg-practice" class="preview-msg small"></div>
+</div>
+<div id="panel" class="panel">
               <div class="panel-tabs">
                 <div class="panel-tab active" data-tab="numbers">Números</div>
                 <div class="panel-tab" data-tab="symbols">Símbolos</div>
@@ -336,10 +348,11 @@
           <div class="row" style="justify-content:space-between; align-items:center">
             <div><span class="badge" id="exam-progress">—/—</span></div>
             <div class="muted">Responde con la expresión equivalente.</div>
-          </div>
+          </div><div id="exam-target" class="target">Despeja: —</div>
+
           <div id="exam-eq" class="equation"><span class="tex">(—)</span></div>
-          <div class="row level-wrap" style="margin-bottom:6px">
-            <div id="exam-target" class="target">Despeja: —</div>
+          
+<div class="row level-wrap" style="margin-bottom:6px"> 
             <label class="small muted">Nivel:
               <select id="exam-nivel" class="level-select">
                 <option value="0">Todos</option>
@@ -350,7 +363,13 @@
           </div>
           <div class="input-stack">
             <input id="exam-ans" type="text" placeholder="Tu expresión..." />
-            <div id="panel-exam" class="panel">
+            
+<div id="exam-preview" class="input-preview hidden">
+  <div class="small muted">Vista previa interpretada</div>
+  <div id="preview-tex-exam" class="preview-tex">(—)</div>
+  <div id="preview-msg-exam" class="preview-msg small"></div>
+</div>
+<div id="panel-exam" class="panel">
               <div class="panel-tabs">
                 <div class="panel-tab active" data-tab="numbers">Números</div>
                 <div class="panel-tab" data-tab="symbols">Símbolos</div>
@@ -8337,9 +8356,9 @@
   }
   function showProblem(){
     $('#estado').classList.add('hidden');
-    $('#respuesta').value='';
+    $('#respuesta').value=''; updatePracticePreview();
     renderTex($('#equation'), current.item.tex || current.item.display);
-    $('#target').textContent='Despeja: '+current.target;
+    $('#target').textContent='Despeja: '+current.target+' en la ecuación:';
     renderVarChips();
   }
 
@@ -8444,7 +8463,7 @@
     const truth=current.item.solutions[current.target];
     showStatusTeX('Solución:', current.target, truth, 'warn');
   });
-  $('#btn-limpiar').addEventListener('click', ()=>{ $('#respuesta').value=''; $('#estado').classList.add('hidden'); $('#respuesta').focus(); });
+  $('#btn-limpiar').addEventListener('click', ()=>{ $('#respuesta').value=''; updatePracticePreview(); $('#estado').classList.add('hidden'); $('#respuesta').focus(); });
   $('#btn-check').addEventListener('click', ()=>{
     if(!PROFILE){ openProfilesOverlay(); return; }
     if(!current) startNew();
@@ -8545,7 +8564,7 @@
     const items=[]; for(let i=0;i<n;i++){ const it=pool[Math.floor(Math.random()*pool.length)]||BANK[0]; const targets=Object.keys(it.solutions); const target=targets[Math.floor(Math.random()*targets.length)]; items.push({item:it, target}); }
     return items;
   }
-  function renderExamQ(){ if(!exam) return; const q=exam.pool[exam.idx]; $('#exam-progress').textContent=(exam.idx+1)+'/'+exam.n; renderTex($('#exam-eq'), q.item.tex||q.item.display); $('#exam-target').textContent='Despeja: '+q.target; $('#exam-ans').value=''; }
+  function renderExamQ(){ if(!exam) return; const q=exam.pool[exam.idx]; $('#exam-progress').textContent=(exam.idx+1)+'/'+exam.n; renderTex($('#exam-eq'), q.item.tex||q.item.display); $('#exam-target').textContent='Despeja: '+q.target+' en la ecuación:'; $('#exam-ans').value=''; updateExamPreview(); }
   function showExamStatus(html,type){ const box=$('#exam-status'); box.className='status '+(type||'warn'); box.innerHTML=html; box.classList.remove('hidden'); }
   function tick(){
     if(!exam) return;
@@ -8640,8 +8659,52 @@
     const id = '#'+tab.dataset.tab; $(id)?.classList.remove('hidden');
   }));
 
-  // Init
+  
+  // ===== Vista previa de entrada (práctica) =====
+  function updatePracticePreview(){
+    const input = $('#respuesta');
+    const box = $('#respuesta-preview');
+    const texEl = $('#preview-tex-practice');
+    const msgEl = $('#preview-msg-practice');
+    const raw = input.value || '';
+    if(!raw.trim()){
+      box.classList.add('hidden'); msgEl.textContent=''; texEl.innerHTML=''; return;
+    }
+    if(!current){ box.classList.add('hidden'); return; }
+    let ans = sanitizeInput(raw);
+    const allowed = new Set(current.item.vars.filter(v=>v!==current.target).concat(['pi','e','exp']));
+    ans = normalizeCase(ans, Array.from(allowed));
+    const symErr = checkSymbols(ans, current.item, current.target);
+    renderTex(texEl, texFromExpr(ans));
+    msgEl.textContent = symErr ? symErr : '';
+    box.classList.remove('hidden');
+  }
+  // ===== Vista previa de entrada (examen) =====
+  function updateExamPreview(){
+    const input = $('#exam-ans');
+    const box = $('#exam-preview');
+    const texEl = $('#preview-tex-exam');
+    const msgEl = $('#preview-msg-exam');
+    const raw = input.value || '';
+    if(!raw.trim()){
+      box.classList.add('hidden'); msgEl.textContent=''; texEl.innerHTML=''; return;
+    }
+    if(!exam){ box.classList.add('hidden'); return; }
+    const q = exam.pool[exam.idx];
+    let ans = sanitizeInput(raw);
+    const allowed = new Set(q.item.vars.filter(v=>v!==q.target).concat(['pi','e','exp']));
+    ans = normalizeCase(ans, Array.from(allowed));
+    const symErr = checkSymbols(ans, q.item, q.target);
+    renderTex(texEl, texFromExpr(ans));
+    msgEl.textContent = symErr ? symErr : '';
+    box.classList.remove('hidden');
+  }
+
+// Init
   function init(){
+    $('#respuesta').addEventListener('input', updatePracticePreview);
+    $('#exam-ans').addEventListener('input', updateExamPreview);
+
     renderBankList();
     ensureProfileSelected();
   }
